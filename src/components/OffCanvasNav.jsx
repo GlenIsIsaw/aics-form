@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import {
   Offcanvas,
   Navbar,
@@ -9,7 +11,7 @@ import {
   Image,
   Stack,
 } from 'react-bootstrap';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   FaBars,
   FaHome,
@@ -29,27 +31,39 @@ import {
 } from 'react-icons/fa';
 
 const OffCanvasNav = ({
-  isAuthenticated = false,
-  user = null,
-  onLogin,
-  onLogout,
   onNavigate,
   unreadNotifications = 0,
 }) => {
   const [show, setShow] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const handleClose = () => setShow(false);
   const handleShow = () => setShow(true);
 
   const handleNavigation = (path) => {
-    if (onNavigate) onNavigate(path);
+    if (onNavigate) {
+      onNavigate(path);
+    } else {
+      navigate(path);
+    }
     handleClose();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      handleClose();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
-    // You can implement dark mode logic here
     document.body.classList.toggle('dark-mode');
   };
 
@@ -76,12 +90,29 @@ const OffCanvasNav = ({
     },
   };
 
+  // Get user display name from Supabase user metadata
+  const getUserDisplayName = () => {
+    return user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+  };
+
+  const getUserEmail = () => {
+    return user?.email || 'user@example.com';
+  };
+
+  const getUserAvatar = () => {
+    return `https://ui-avatars.com/api/?name=${getUserDisplayName()}&background=667eea&color=fff&bold=true`;
+  };
+
   return (
     <>
       {/* Navbar */}
       <Navbar bg="primary" variant="dark" expand={false} className="mb-4 px-3">
         <Container fluid>
-          <Navbar.Brand href="#" className="d-flex align-items-center">
+          <Navbar.Brand 
+            onClick={() => handleNavigation('/')} 
+            className="d-flex align-items-center cursor-pointer"
+            style={{ cursor: 'pointer' }}
+          >
             <motion.div
               initial={{ rotate: -180, opacity: 0 }}
               animate={{ rotate: 0, opacity: 1 }}
@@ -101,7 +132,7 @@ const OffCanvasNav = ({
 
           <div className="d-flex align-items-center gap-2">
             {/* Notifications Badge */}
-            {isAuthenticated && unreadNotifications > 0 && (
+            {user && unreadNotifications > 0 && (
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
@@ -154,9 +185,9 @@ const OffCanvasNav = ({
               animate="visible"
               className="d-flex align-items-center"
             >
-              {isAuthenticated ? (
+              {user ? (
                 <Image
-                  src={user?.avatar || `https://ui-avatars.com/api/?name=${user?.name || 'User'}&background=667eea&color=fff&bold=true`}
+                  src={getUserAvatar()}
                   roundedCircle
                   width={40}
                   height={40}
@@ -167,10 +198,10 @@ const OffCanvasNav = ({
               )}
               <div>
                 <div className="fw-bold">
-                  {isAuthenticated ? user?.name || 'User' : 'Welcome!'}
+                  {user ? getUserDisplayName() : 'Welcome!'}
                 </div>
                 <small className="text-muted">
-                  {isAuthenticated ? user?.email || 'user@example.com' : 'Please sign in'}
+                  {user ? getUserEmail() : 'Please sign in to continue'}
                 </small>
               </div>
             </motion.div>
@@ -179,7 +210,7 @@ const OffCanvasNav = ({
 
         <Offcanvas.Body className="p-0">
           {/* User Stats (when authenticated) */}
-          {isAuthenticated && (
+          {user && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -240,7 +271,7 @@ const OffCanvasNav = ({
               </Nav.Link>
             </motion.div>
 
-            {isAuthenticated && (
+            {user && (
               <>
                 <motion.div
                   custom={2}
@@ -270,7 +301,6 @@ const OffCanvasNav = ({
                   >
                     <FaUsers className="me-3 text-info" />
                     <span>Family Members</span>
-                    <Badge bg="secondary" className="ms-2">{familyMembers?.length || 0}</Badge>
                     <FaChevronRight className="ms-auto text-muted" size={12} />
                   </Nav.Link>
                 </motion.div>
@@ -342,14 +372,11 @@ const OffCanvasNav = ({
               initial="hidden"
               animate="visible"
             >
-              {isAuthenticated ? (
+              {user ? (
                 <Button
                   variant="outline-danger"
                   className="w-100 d-flex align-items-center justify-content-center"
-                  onClick={() => {
-                    if (onLogout) onLogout();
-                    handleClose();
-                  }}
+                  onClick={handleLogout}
                 >
                   <FaSignOutAlt className="me-2" />
                   Sign Out
@@ -359,10 +386,7 @@ const OffCanvasNav = ({
                   <Button
                     variant="primary"
                     className="d-flex align-items-center justify-content-center"
-                    onClick={() => {
-                      if (onLogin) onLogin();
-                      handleClose();
-                    }}
+                    onClick={() => handleNavigation('/login')}
                   >
                     <FaSignInAlt className="me-2" />
                     Sign In
